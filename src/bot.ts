@@ -55,7 +55,7 @@ bot.on("message", async (ctx) => {
     // set a default value
     ctx.session ??= { transcribing: false }
 
-    if (ctx.session?.transcribing) {
+    if (ctx.session.transcribing) {
       await ctx.reply("We are transcribing your voice. please wait...")
       return
     }
