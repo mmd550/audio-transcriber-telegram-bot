@@ -1,18 +1,35 @@
 import * as dotenv from "dotenv"
 import path from "path"
-import { Context, NarrowedContext, Telegraf } from "telegraf"
+import { Context, NarrowedContext, Telegraf, session } from "telegraf"
 // import { message } from "telegraf/filters"
 import { transcribe } from "./transcriber"
 import { Message, Update } from "telegraf/typings/core/types/typegram"
 
 dotenv.config()
 
-const bot = new Telegraf(process.env.BOT_TOKEN)
+interface SessionData {
+  transcribing?: boolean
+}
+
+interface MyContext extends Context {
+  session: SessionData
+}
+
+const bot = new Telegraf<MyContext>(process.env.BOT_TOKEN)
+
+bot.use(session())
 
 const allowedExtensions = process.env.ALLOWED_EXTENSIONS.split(",")
 
 const maxFileSizeMB = Number(process.env.MAX_FILE_SIZE_MB)
 const maxFileSize = maxFileSizeMB * 1024 * 1024
+
+function updateSession(
+  ctx: NarrowedContext<MyContext, Update.MessageUpdate<Message>>,
+  data: Partial<SessionData>,
+) {
+  ctx.session = { ...ctx.session, ...data }
+}
 
 async function validateFileTypeByFileName(
   ctx: NarrowedContext<Context<Update>, Update.MessageUpdate<Message>>,
@@ -40,10 +57,13 @@ async function validateFileTypeByFileName(
   return false
 }
 
-async function handleMessage(
-  ctx: NarrowedContext<Context<Update>, Update.MessageUpdate<Message>>,
-) {
+bot.on("message", async (ctx) => {
   try {
+    if (ctx.session.transcribing) {
+      await ctx.reply("We are transcribing your voice. please wait...")
+      return
+    }
+
     const message = ctx.message
     let fileId: string | undefined,
       fileName: string | undefined,
@@ -81,7 +101,10 @@ async function handleMessage(
           `We have received the audio and we are transcribing it. please be patient...`,
         )
 
-        const text = await transcribe(fileLink)
+        updateSession(ctx, { transcribing: true })
+        const text = await transcribe(fileLink).finally(() => {
+          updateSession(ctx, { transcribing: false })
+        })
 
         await ctx.reply(`Here is the transcription for your audio:\n ${text}`)
       } else return
@@ -92,9 +115,7 @@ async function handleMessage(
   } catch (e) {
     await ctx.reply("Something went wrong while processing your file.")
   }
-}
-
-bot.on("message", handleMessage)
+})
 
 // bot.on(message("text"), async () => {})
 
