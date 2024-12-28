@@ -1,28 +1,26 @@
-import * as dotenv from "dotenv"
 import path from "path"
-import { Context, NarrowedContext, Telegraf, session } from "telegraf"
 // import { message } from "telegraf/filters"
-import { transcribe } from "./transcriber"
+import { Context, NarrowedContext, Telegraf, session } from "telegraf"
 import { Message, Update } from "telegraf/typings/core/types/typegram"
-
-dotenv.config()
+import { config } from "./config"
+import { transcribe } from "./transcriber"
 
 interface SessionData {
   transcribing?: boolean
 }
 
+const allowedExtensions = config.allowedExtensions.split(",")
+
+const maxFileSizeMB = config.maxFileSize
+const maxFileSize = maxFileSizeMB * 1024 * 1024
+
 interface MyContext extends Context {
   session: SessionData
 }
 
-const bot = new Telegraf<MyContext>(process.env.BOT_TOKEN)
+export const bot = new Telegraf<MyContext>(config.botToken)
 
 bot.use(session())
-
-const allowedExtensions = process.env.ALLOWED_EXTENSIONS.split(",")
-
-const maxFileSizeMB = Number(process.env.MAX_FILE_SIZE_MB)
-const maxFileSize = maxFileSizeMB * 1024 * 1024
 
 async function validateFileTypeByFileName(
   ctx: NarrowedContext<Context<Update>, Update.MessageUpdate<Message>>,
@@ -118,13 +116,11 @@ bot.on("message", async (ctx) => {
 bot.start(async (ctx) => {
   await ctx.reply("Welcome to the AudioTranscriber bot! 🎉")
   await ctx.reply(
-    `I am here to transcribe your voices. You can send me a voice or audio file message, and I will transcribe it for you.\n Currently I support these audio formats: [${process.env.ALLOWED_EXTENSIONS}]`,
+    `I am here to transcribe your voices. You can send me a voice or audio file message, and I will transcribe it for you.\n Currently I support these audio formats: [${config.allowedExtensions}]`,
   )
 })
 
 bot.launch()
-
-console.log("Bot is running...")
 
 // Graceful stop on SIGINT or SIGTERM
 process.once("SIGINT", () => bot.stop("SIGINT"))
