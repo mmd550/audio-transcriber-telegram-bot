@@ -24,13 +24,6 @@ const allowedExtensions = process.env.ALLOWED_EXTENSIONS.split(",")
 const maxFileSizeMB = Number(process.env.MAX_FILE_SIZE_MB)
 const maxFileSize = maxFileSizeMB * 1024 * 1024
 
-function updateSession(
-  ctx: NarrowedContext<MyContext, Update.MessageUpdate<Message>>,
-  data: Partial<SessionData>,
-) {
-  ctx.session = { ...ctx.session, ...data }
-}
-
 async function validateFileTypeByFileName(
   ctx: NarrowedContext<Context<Update>, Update.MessageUpdate<Message>>,
   fileName: string,
@@ -59,7 +52,10 @@ async function validateFileTypeByFileName(
 
 bot.on("message", async (ctx) => {
   try {
-    if (ctx.session.transcribing) {
+    // set a default value
+    ctx.session ??= { transcribing: false }
+
+    if (ctx.session?.transcribing) {
       await ctx.reply("We are transcribing your voice. please wait...")
       return
     }
@@ -101,9 +97,9 @@ bot.on("message", async (ctx) => {
           `We have received the audio and we are transcribing it. please be patient...`,
         )
 
-        updateSession(ctx, { transcribing: true })
+        ctx.session.transcribing = true
         const text = await transcribe(fileLink).finally(() => {
-          updateSession(ctx, { transcribing: false })
+          ctx.session.transcribing = false
         })
 
         await ctx.reply(`Here is the transcription for your audio:\n ${text}`)
